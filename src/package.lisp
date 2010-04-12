@@ -1,5 +1,6 @@
-(defpackage #:growl
+(defpackage #:cl-growl
   (:use "COMMON-LISP" "TRIVIAL-UTF-8")
+  (:nicknames #:growl)
   (:export #:register
 	   #:notify
 	   #:*growl-default-host*

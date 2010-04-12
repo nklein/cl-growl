@@ -1,4 +1,4 @@
-(asdf:defsystem #:growl
+(asdf:defsystem #:cl-growl
   :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams)
   :weakly-depends-on (#:md5 #:ironclad)
   :components ((:module "src"
