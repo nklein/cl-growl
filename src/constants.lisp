@@ -6,7 +6,7 @@
 
 (define-constant +growl-protocol-version+ 1 "GROWL Protocol Version")
 
-#+ironclad
+#+(and ironclad notyet)
 (define-constant +growl-protocol-version-aes128+ 2
                  "GROWL Protocol Version with Encryption")
 

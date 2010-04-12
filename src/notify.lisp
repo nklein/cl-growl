@@ -11,16 +11,15 @@
 					  #+md5      :md5
 				                     :noauth))
 		       (password *growl-default-password*)
-		       #+ironclad (encryptp nil)
+		       #+(and ironclad notyet) (encryptp nil)
 		  &aux (message-enc (string-to-utf-8-bytes message))
 	               (title-enc (string-to-utf-8-bytes title))
 	               (app-enc (string-to-utf-8-bytes app))
 	               (notification-enc (string-to-utf-8-bytes notification)))
   "Make a notification of type NOTIFICATION for the app APP with description MESSAGE."
 
-        ;; version is unencrypted unless we have the means to encrypt
-        ;; (read: ironclad and a password)
-  (let ((ver (or #+ironclad (when encryptp +growl-protocol-version-aes128+)
+  (let ((ver (or #+(and ironclad notyet)
+		 (when encryptp +growl-protocol-version-aes128+)
 		 +growl-protocol-version+))
 	(type (ecase checksum-mode
 		#+ironclad (:sha256 +growl-type-notification-sha256+)
@@ -70,4 +69,5 @@
 		   :host host :port port
 		   :checksum-mode checksum-mode
 		   :password password
-		   #+ironclad :encryptp #+ironclad encryptp))))
+		   #+(and ironclad notyet) :encryptp
+		   #+(and ironclad notyet) encryptp))))

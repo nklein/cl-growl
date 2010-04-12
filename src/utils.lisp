@@ -58,16 +58,18 @@
 			:requested-mode checksum-mode)))))
 
 
-(defun send-packet (payload &key host port checksum-mode password encryptp
+(defun send-packet (payload &key host port checksum-mode password
+		                 #+(and ironclad notyet) encryptp
 		      &aux (password-enc (string-to-utf-8-bytes password)))
   (let ((buffer (concatenate '(simple-array (unsigned-byte 8) (*))
 			     payload
 			     (checksum payload password-enc checksum-mode))))
-    #+ironclad (when encryptp
-		 (let ((cipher (ironclad:make-cipher :aes
-						     :key password-enc
-						     :mode :cbc)))
-		   (ironclad:encrypt-in-place cipher buffer :start 1)))
+    #+(and ironclad notyet)
+    (when encryptp
+      (let ((cipher (ironclad:make-cipher :aes
+					  :key password-enc
+					  :mode :cbc)))
+	(ironclad:encrypt-in-place cipher buffer :start 1)))
     (usocket:with-udp-client-socket (ss host port
 					:element-type '(unsigned-byte 8))
       (usocket:socket-send ss buffer (length buffer)))))

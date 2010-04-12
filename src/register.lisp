@@ -9,11 +9,12 @@
 					 #+md5      :md5
 				                    :noauth))
 		      (password *growl-default-password*)
-		      #+ironclad (encryptp nil)
+		      #+(and ironclad notyet) (encryptp nil)
 		 &aux (app-enc (string-to-utf-8-bytes app)))
   "Register as the application named APP with the ENABLED notifications turned on and the DISABLED notifications turned off by default.  If PASSWORD is given, then use AES128 on the message."
 
-  (let ((ver (or #+ironclad (when encryptp +growl-protocol-version-aes128+)
+  (let ((ver (or #+(and ironclad notyet)
+		 (when encryptp +growl-protocol-version-aes128+)
 		 +growl-protocol-version+))
 	(type (ecase checksum-mode
 		#+ironclad (:sha256 +growl-type-registration-sha256+)
@@ -40,4 +41,5 @@
 		   :host host :port port
 		   :checksum-mode checksum-mode
 		   :password password
-		   #+ironclad :encryptp #+ironclad encryptp))))
+		   #+(and ironclad notyet) :encryptp
+		   #+(and ironclad notyet) encryptp))))
