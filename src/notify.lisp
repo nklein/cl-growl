@@ -2,7 +2,7 @@
 
 (defun notify (message &key (title *growl-default-title*)
 	               (app *growl-default-app*)
-	               (notification (first *growl-default-enabled-notifications*))
+	               (notification *growl-default-notification*)
 	               (priority 0)
 	               (sticky nil)
 		       (host *growl-default-host*)

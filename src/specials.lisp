@@ -10,5 +10,7 @@
         (list)
     "List of Growl notifications that are disabled by default")
 
+(defvar *growl-default-notification* (first *growl-default-enabled-notifications*))
+
 (defvar *growl-default-title* "")
 (defvar *growl-default-password* "")
