@@ -9,7 +9,8 @@
 	   #:*growl-default-enabled-notifications*
 	   #:*growl-default-disabled-notifications*
 	   #:*growl-default-title*
-	   #:*growl-default-password*))
+	   #:*growl-default-password*
+	   #:*growl-default-notification*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (when (find-package :ironclad)
