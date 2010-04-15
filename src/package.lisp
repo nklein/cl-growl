@@ -6,11 +6,19 @@
 	   #:*growl-default-host*
 	   #:*growl-default-port*
 	   #:*growl-default-app*
-	   #:*growl-default-enabled-notifications*
-	   #:*growl-default-disabled-notifications*
+	   #:*growl-default-app-icon*
+	   #:*growl-default-notification*
 	   #:*growl-default-title*
-	   #:*growl-default-password*
-	   #:*growl-default-notification*))
+	   #:*growl-default-priority*
+	   #:*growl-default-icon*
+	   #:*growl-default-callback-context*
+	   #:*growl-default-callback-context-type*
+	   #:*growl-default-callback-target*
+	   #:*growl-default-origin-fields*
+	   #:*growl-default-custom-fields*
+	   #:*growl-default-checksum-mode*
+	   #:*growl-default-encryption-mode*
+	   #:*growl-default-password*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (when (find-package :ironclad)

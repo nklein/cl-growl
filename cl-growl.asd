@@ -1,5 +1,6 @@
+;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 (asdf:defsystem #:cl-growl
-  :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams)
+  :depends-on (#:trivial-utf-8 #:usocket #:flexi-streams)
   :weakly-depends-on (#:md5 #:ironclad)
   :components ((:module "src"
 		:components ((:file "package")
@@ -18,6 +19,7 @@
 							    "specials"
 							    "utils"
 							    "gntp"))
+			     #+notyet
 			     (:file "notify"   :depends-on ("package"
 							    "constants"
 							    "types"

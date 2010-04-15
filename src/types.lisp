@@ -1,14 +1,15 @@
 (in-package :growl)
 
 (deftype growl-checksum-mode ()
-  "If you have Ironclad, you can do :SHA256, :MD5, or :NONE.
+  "If you have Ironclad, you can do :SHA256, :SHA1, :MD5, or :NONE.
    If you have the MD5 package, you can do :MD5 or :NONE.
    If you have neither Ironclad nor MD5, you can only do :NONE.
    With :NONE, you will not be able to do authenticated Growl
    transactions."
   `(member :none
 	   #+(or ironclad md5) :md5
-	   #+ironclad :sha256))
+	   #+ironclad :sha256
+	   #+ironclad :sha1))
 
 (deftype growl-binary-data-type ()
   `(array (unsigned-byte 8) (*)))
@@ -50,3 +51,18 @@
   ((requested-mode :initarg :requested-mode
 		   :reader unavailable-encryption-requested-mode))
   (:report report-unavailable-encryption-error))
+
+(defun report-incompatible-encryption-and-checksum-error (err stream)
+  (let ((encryption-mode (slot-value err 'requested-encryption-mode))
+	(checksum-mode (slot-value err 'requested-checksum-mode)))
+    (format stream "Checksum algorithm ~A does not produce enough bits"
+	    checksum-mode)
+    (format stream " for encryption algorithm ~A's keys"
+	    encryption-mode)))
+
+(define-condition incompatible-encryption-and-checksum-error (error)
+  ((requested-encryption-mode :initarg :requested-encryption-mode
+			      :reader incompatible-encryption-requested-mode)
+   (requested-checksum-mode   :initarg :requested-checksum-mode
+			      :reader incompatible-checksum-requested-mode))
+  (:report report-incompatible-encryption-and-checksum-error))

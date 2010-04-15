@@ -3,6 +3,27 @@
 ;;; =======================================================
 ;;; validity checks
 ;;; =======================================================
+(defun valid-encryption-checksum-combo (encryption-mode checksum-mode)
+  (unless (typep checksum-mode 'growl-checksum-mode)
+    (error 'unavailable-checksum-mode-error :requested-mode checksum-mode))
+
+  (unless (typep encryption-mode 'growl-encryption-mode)
+    (error 'unavailable-encryption-mode-error :requested-mode encryption-mode))
+
+  (case encryption-mode
+    #+ironclad (:des (when (member checksum-mode '(:none))
+		       (error 'incompatible-encryption-and-checksum-error
+			      :requested-encryption-mode encryption-mode
+			      :requested-checksum-mode checksum-mode)))
+    #+ironclad (:aes (when (member checksum-mode '(:none :md5 :sha1))
+		       (error 'incompatible-encryption-and-checksum-error
+			      :requested-encryption-mode encryption-mode
+			      :requested-checksum-mode checksum-mode)))
+    #+ironclad (:3des (when (member checksum-mode '(:none :md5 :sha1))
+			(error 'incompatible-encryption-and-checksum-error
+			       :requested-encryption-mode encryption-mode
+			       :requested-checksum-mode checksum-mode)))))
+
 (defun required-string (ss)
   (assert (typep ss 'string))
   (assert (plusp (length ss)))
@@ -89,7 +110,6 @@
   (hdr-line (first hdr) (second hdr) data-hash))
 
 (defun notice-decl (nn enabled data-hash)
-  (hdr-terpri)
   (flet ((notice-enabled ()
 	   (hdr-line "Notification-Enabled"
 		     (if enabled "Yes" "No") data-hash)))
@@ -106,14 +126,66 @@
 		    (mapc #'(lambda (oo) (custom-hdr-line oo data-hash))
 			  others)))
       (t (hdr-line "Notification-Name" nn data-hash)
-	 (notice-enabled)))))
+	 (notice-enabled))))
+  (hdr-terpri))
 
-(defun encode-binary-data (id value &key encryption-mode password salt iv)
-  (declare (ignore encryption-mode password salt iv))
+(defun encode-binary-data (id value &key encryption-mode key iv)
   (with-output-to-binary-string
-    (hdr-terpri)
     (hdr-line "Identifier" id nil)
-    (hdr-line "Length" (length value) nil)
-    (hdr-terpri)
-    (write-sequence value *standard-output*)
+    (let ((enc (encrypt value encryption-mode key iv)))
+      (hdr-line "Length" (length enc) nil)
+      (hdr-terpri)
+      (write-sequence enc *standard-output*))
     (hdr-terpri)))
+
+(defun make-key (checksum-mode password salt)
+  (with-utf-8-strings (password)
+    (checksum password salt checksum-mode)))
+
+(defun make-encryption-hdr (encryption-mode iv)
+  (case encryption-mode
+    (:none     "NONE")
+    (otherwise (format nil "~A:~A" encryption-mode (hex-encode iv)))))
+
+(defun make-password-hash-hdr (key checksum-mode salt)
+  (case checksum-mode
+    (:none "NONE")
+    (otherwise (format nil "~A:~A.~A" checksum-mode
+		                      (hex-encode (checksum key ""
+							    checksum-mode))
+				      (hex-encode salt)))))
+
+(defun compose (message-type &key header binary-data
+		                  checksum-mode encryption-mode password
+		                  (salt (generate-salt 12))
+                                  (iv (generate-iv encryption-mode)))
+  (setf *written* nil)
+  (let* ((key (make-key checksum-mode password salt))
+	 (enc-hdr (make-encryption-hdr encryption-mode iv))
+	 (pwd-hdr (make-password-hash-hdr key checksum-mode salt))
+	 (packet-start (format nil "GNTP/~A ~A ~A ~A"
+			           +growl-protocol-version+
+				   message-type
+				   enc-hdr
+				   pwd-hdr)))
+    (with-utf-8-strings (packet-start)
+      (write-sequence packet-start *standard-output*))
+    (hdr-terpri)
+
+    (write-sequence (encrypt header encryption-mode key iv) *standard-output*)
+
+    (when binary-data
+      (unless (or (eql encryption-mode :none)
+		  (zerop (hash-table-count binary-data)))
+	(hdr-terpri)
+	(hdr-terpri))
+      (maphash #'(lambda (id value)
+		   (let ((dd (encode-binary-data id value
+				      :encryption-mode encryption-mode
+				      :key key
+				      :iv iv)))
+		     (write-sequence dd *standard-output*)))
+	       binary-data))
+    (hdr-terpri)
+    (hdr-terpri))
+  salt)

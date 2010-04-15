@@ -90,8 +90,8 @@
    a one-dimensional binary array.")
 
 (defvar *growl-default-checksum-mode* #+ironclad :sha256
-	                               #+md5 :md5
-				       #-(or ironclad md5) :none
+				      #+md5 :md5
+				      #-(or ironclad md5) :none
   "Default hash algorithm to use.  It must be a valid
    GROWL-CHECKSUM-MODE.")
 (declaim (type growl-checksum-mode *growl-default-checksum-mode*))

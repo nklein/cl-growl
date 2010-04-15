@@ -1,5 +1,15 @@
 (in-package :growl)
 
+(defun echo-all-bytes (stream
+		       &optional (buffer (make-array '(512)
+						     :element-type
+						         '(unsigned-byte 8))))
+  (let ((cc (read-sequence buffer stream)))
+    (when (plusp cc)
+      (write-sequence (utf-8-bytes-to-string (subseq buffer 0 cc))
+		      *standard-output*)
+      (echo-all-bytes stream buffer))))
+
 (defun register (&key (app *growl-default-app*)
 		      (app-icon *growl-default-app-icon*)
 		      enabled
@@ -39,18 +49,11 @@
   (required-string host)
   (valid-port port)
 
-  (unless (eql encryption-mode :none)
-    (assert (not (eql checksum-mode :none))))
+  (valid-encryption-checksum-combo encryption-mode checksum-mode)
 
   (unless (and (eql checksum-mode :none)
 	       (eql encryption-mode :none))
     (required-string password))
-
-  (unless (typep checksum-mode 'growl-checksum-mode)
-    (error 'unavailable-checksum-mode-error :requested-mode checksum-mode))
-
-  (unless (typep encryption-mode 'growl-encryption-mode)
-    (error 'unavailable-encryption-mode-error :requested-mode encryption-mode))
 
 
   (labels ((hdr (data-hash)
@@ -66,19 +69,29 @@
 	     (hdr-line "Notifications-Count" (+ (length enabled)
 						(length disabled))
 		       data-hash)
+	     (hdr-terpri)
 	     (mapc #'(lambda (nn) (notice-decl nn t data-hash)) enabled)
 	     (mapc #'(lambda (nn) (notice-decl nn nil data-hash)) disabled)))
     (let* ((data-hash (make-hash-table))
-	   (header (with-output-to-binary-string (hdr data-hash)))
-	   (binary-data nil))
-      (format t "~A" (trivial-utf-8:utf-8-bytes-to-string header))
-      (maphash #'(lambda (id value)
-		   (push (encode-binary-data id value
-					     :encryption-mode encryption-mode
-					     :password password)
-			 binary-data))
-	       data-hash)
-      (mapc #'(lambda (bb)
-		(format t "~A" (trivial-utf-8:utf-8-bytes-to-string bb)))
-	    binary-data)))
+	   (msg (with-output-to-binary-string
+		  (compose "REGISTER"
+			   :header (with-output-to-binary-string
+				     (hdr data-hash))
+			   :binary-data data-hash
+			   :checksum-mode checksum-mode
+			   :encryption-mode encryption-mode
+			   :password password
+			   :salt (string-to-utf-8-bytes "foobie")))))
+      (when (eql encryption-mode :none)
+	(write-sequence (utf-8-bytes-to-string msg) *standard-output*))
+      (unless (eql encryption-mode :none)
+	(write-sequence (map 'string #'code-char msg) *standard-output*))
+      (let ((sock (usocket:socket-connect host port
+					  :element-type '(unsigned-byte 8))))
+	(unwind-protect
+	     (progn
+	       (write-sequence msg (usocket:socket-stream sock))
+	       (force-output (usocket:socket-stream sock))
+	       (echo-all-bytes (usocket:socket-stream sock)))
+	  (usocket:socket-close sock)))))
   (values))

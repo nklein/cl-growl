@@ -24,6 +24,13 @@
   (write-byte (ldb (byte 8 0) ss) stream))
 
 #+ironclad
+(defun sha1 (buffer password)
+  (let ((digester (ironclad:make-digest :sha1)))
+    (ironclad:update-digest digester buffer)
+    (ironclad:update-digest digester password)
+    (ironclad:produce-digest digester)))
+
+#+ironclad
 (defun sha256 (buffer password)
   (let ((digester (ironclad:make-digest :sha256)))
     (ironclad:update-digest digester buffer)
@@ -53,20 +60,70 @@
 (defun checksum (payload password checksum-mode)
   (let ((payload (if (typep payload '(simple-array (unsigned-byte 8) (*)))
 		     payload
-		     (make-array (length payload)
-				 :element-type '(unsigned-byte 8)
-				 :initial-contents payload)))
+		     (string-to-utf-8-bytes payload)))
 	(password (if (typep password '(simple-array (unsigned-byte 8) (*)))
 		      password
-		      (make-array (length password)
-				  :element-type '(unsigned-byte 8)
-				  :initial-contents password))))
+		      (string-to-utf-8-bytes password))))
     (case checksum-mode
       #+ironclad (:sha256 (sha256 payload password))
+      #+ironclad (:sha1 (sha1 payload password))
       #+(or md5 ironclad) (:md5 (md5 payload password))
-      (:noauth (noauth payload password))
+      (:none (noauth payload password))
       (otherwise (error 'unavailable-checksum-error
 			:requested-mode checksum-mode)))))
+
+(defun pkcs7-pad (payload block-len)
+  (let* ((payload-len (length payload))
+	 (left        (mod payload-len block-len))
+	 (pad-len     (if (zerop left) 8 left))
+	 (pad         (loop :for ii :from 1 :to pad-len
+			    :collecting pad-len)))
+    (concatenate '(array (unsigned-byte 8) (*))
+		 payload
+		 pad)))
+
+#+ironclad
+(defun ironclad-encrypt (name payload key iv)
+  (let* ((cipher (ironclad:make-cipher name
+				       :key key
+				       :mode :cbc
+				       :initialization-vector iv))
+	 (blen (ironclad:block-length cipher))
+	 (data (pkcs7-pad payload blen))
+	 (out (make-array (list (length data))
+			  :element-type '(unsigned-byte 8))))
+    (push (list (length payload) (length out)
+		(utf-8-bytes-to-string payload)
+		(map 'list #'identity key)) *written*)
+    (ironclad:encrypt cipher data out)
+    out))
+
+#+ironclad
+(defun aes (payload key iv)
+  (ironclad-encrypt :aes payload key iv))
+
+#+ironclad
+(defun des (payload key iv)
+  (ironclad-encrypt :des payload key iv))
+
+#+ironclad
+(defun 3des (payload key iv)
+  (ironclad-encrypt :3des payload key iv))
+
+
+(defun encrypt (payload encryption-mode key iv)
+  (let ((payload (if (typep payload '(simple-array (unsigned-byte 8) (*)))
+		     payload
+		     (make-array (list (length payload))
+				 :element-type '(unsigned-byte 8)
+				 :initial-contents payload))))
+    (case encryption-mode
+      #+ironclad (:aes  (aes  payload (subseq key 0 24) iv))
+      #+ironclad (:des  (des  payload (subseq key 0 8) iv))
+      #+ironclad (:3des (3des payload (subseq key 0 24) iv))
+      (:none payload)
+      (otherwise (error 'unavailable-encryption-error
+			:requested-mode encryption-mode)))))
 
 (defun hex-encode (bytes)
   (flet ((nibble-to-hex (nn)
@@ -77,29 +134,23 @@
 			             (nibble-to-hex (ldb (byte 4 0) bb))))
 	   bytes))))
 
+(defun generate-random-bytes (byte-count)
+  (let ((array (make-array (list byte-count)
+			   :element-type '(unsigned-byte 8))))
+    (loop :for ii :from 0 :below byte-count
+       :do (setf (aref array ii) (random 256)))
+    array))
+
 (defun generate-salt (salt-byte-count)
-  (let ((s "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz./"))
-    (trivial-utf-8:string-to-utf-8-bytes
-       (map 'string #'identity (loop :for ii :from 1 :to salt-byte-count
-				  :with len = (length s)
-				  :collecting (elt s (random len)))))))
+  (generate-random-bytes salt-byte-count))
+
+(defun generate-iv (encryption-mode)
+  (case encryption-mode
+    (:none (generate-random-bytes 0))
+    #+ironclad (:aes  (generate-random-bytes 16))
+    #+ironclad (:des  (generate-random-bytes 8))
+    #+ironclad (:3des (generate-random-bytes 8))))
 
 (defun generate-unique-id (item)
   #+(or md5 ironclad) (nth-value 0 (intern (hex-encode (md5 item nil))))
   #-(or md5 ironclad) (symbol-name (gensym "UNIQUE-ID-")))
-
-(defun send-packet (payload &key host port checksum-mode password
-		                 #+(and ironclad notyet) encryptp
-		      &aux (password-enc (string-to-utf-8-bytes password)))
-  (let ((buffer (concatenate '(simple-array (unsigned-byte 8) (*))
-			     payload
-			     (checksum payload password-enc checksum-mode))))
-    #+(and ironclad notyet)
-    (when encryptp
-      (let ((cipher (ironclad:make-cipher :aes
-					  :key password-enc
-					  :mode :cbc)))
-	(ironclad:encrypt-in-place cipher buffer :start 1)))
-    (usocket:with-udp-client-socket (ss host port
-					:element-type '(unsigned-byte 8))
-      (usocket:socket-send ss buffer (length buffer)))))
