@@ -1,45 +1,84 @@
 (in-package :growl)
 
 (defun register (&key (app *growl-default-app*)
-		      (enabled *growl-default-enabled-notifications*)
-		      (disabled *growl-default-disabled-notifications*)
+		      (app-icon *growl-default-app-icon*)
+		      enabled
+		      disabled
+		      (origin-fields *growl-default-origin-fields*)
+		      (custom-fields *growl-default-custom-fields*)
+		      (application-fields *growl-default-application-fields*)
 		      (host *growl-default-host*)
 		      (port *growl-default-port*)
-		      (checksum-mode (or #+ironclad :sha256
-					 #+md5      :md5
-				                    :noauth))
-		      (password *growl-default-password*)
-		      #+(and ironclad notyet) (encryptp nil)
-		 &aux (app-enc (string-to-utf-8-bytes app)))
-  "Register as the application named APP with the ENABLED notifications turned on and the DISABLED notifications turned off by default.  If PASSWORD is given, then use AES128 on the message."
+		      (checksum-mode *growl-default-checksum-mode*)
+		      (encryption-mode *growl-default-encryption-mode*)
+		      (password *growl-default-password*))
 
-  (let ((ver (or #+(and ironclad notyet)
-		 (when encryptp +growl-protocol-version-aes128+)
-		 +growl-protocol-version+))
-	(type (ecase checksum-mode
-		#+ironclad (:sha256 +growl-type-registration-sha256+)
-		#+(or md5 ironclad) (:md5 +growl-type-registration+)
-		(:noauth +growl-type-registration-noauth+)))
-	(app-len (length app-enc))
-	(nall (+ (length enabled) (length disabled)))
-	(ndef (length enabled)))
-    (let ((stream (flexi-streams:make-in-memory-output-stream)))
-      (write-byte ver stream)
-      (write-byte type stream)
-      (write-short app-len stream)
-      (write-byte nall stream)
-      (write-byte ndef stream)
-      (write-sequence app-enc stream)
-      (loop :for nn :in (append enabled disabled)
-	 :do (let ((enc (string-to-utf-8-bytes nn)))
-	       (write-short (length enc) stream)
-	       (write-sequence enc stream)))
-      (loop :for ii :from 0 :below ndef
-	 :do (write-byte ii stream))
+  "Register as the application named APP with the ENABLED
+   notifications turned on and the DISABLED notifications turned off
+   by default.
 
-      (send-packet (flexi-streams:get-output-stream-sequence stream)
-		   :host host :port port
-		   :checksum-mode checksum-mode
-		   :password password
-		   #+(and ironclad notyet) :encryptp
-		   #+(and ironclad notyet) encryptp))))
+   The ENABLED and DISABLED parameters are lists.  The list elements
+   of the ENABLED and DISABLED parameters can be either a string or a
+   list.  If it is a string, it is the name of a notification.  If it
+   is a list, it can have either one, two, or three members.  The
+   first member is the notification name, the second member (if
+   present) is the human-readable notification name, and the third
+   member (if present) is the notification icon.  The third item can
+   be either a URL to the notification icon or a one-dimensional
+   binary vector containing the encoded icon image."
+
+
+  ;; sanity checks
+  (required-string app)
+  (optional-icon app-icon)
+  (mapc #'valid-notice-decl enabled)
+  (mapc #'valid-notice-decl disabled)
+  (mapc #'valid-origin-field origin-fields)
+  (mapc #'valid-field custom-fields)
+  (mapc #'valid-field application-fields)
+  (required-string host)
+  (valid-port port)
+
+  (unless (eql encryption-mode :none)
+    (assert (not (eql checksum-mode :none))))
+
+  (unless (and (eql checksum-mode :none)
+	       (eql encryption-mode :none))
+    (required-string password))
+
+  (unless (typep checksum-mode 'growl-checksum-mode)
+    (error 'unavailable-checksum-mode-error :requested-mode checksum-mode))
+
+  (unless (typep encryption-mode 'growl-encryption-mode)
+    (error 'unavailable-encryption-mode-error :requested-mode encryption-mode))
+
+
+  (labels ((hdr (data-hash)
+	     (hdr-line "Application-Name" app data-hash)
+	     (when app-icon
+	       (hdr-line "Application-Icon" app-icon data-hash))
+	     (mapc #'(lambda (ff) (origin-hdr-line ff data-hash))
+		   origin-fields)
+	     (mapc #'(lambda (ff) (custom-hdr-line ff data-hash))
+		   custom-fields)
+	     (mapc #'(lambda (ff) (app-hdr-line ff data-hash))
+		   application-fields)
+	     (hdr-line "Notifications-Count" (+ (length enabled)
+						(length disabled))
+		       data-hash)
+	     (mapc #'(lambda (nn) (notice-decl nn t data-hash)) enabled)
+	     (mapc #'(lambda (nn) (notice-decl nn nil data-hash)) disabled)))
+    (let* ((data-hash (make-hash-table))
+	   (header (with-output-to-binary-string (hdr data-hash)))
+	   (binary-data nil))
+      (format t "~A" (trivial-utf-8:utf-8-bytes-to-string header))
+      (maphash #'(lambda (id value)
+		   (push (encode-binary-data id value
+					     :encryption-mode encryption-mode
+					     :password password)
+			 binary-data))
+	       data-hash)
+      (mapc #'(lambda (bb)
+		(format t "~A" (trivial-utf-8:utf-8-bytes-to-string bb)))
+	    binary-data)))
+  (values))

@@ -4,13 +4,22 @@
   :components ((:module "src"
 		:components ((:file "package")
 			     (:file "constants" :depends-on ("package"))
-			     (:file "specials" :depends-on ("package"))
+			     (:file "types"    :depends-on ("package"))
+			     (:file "specials" :depends-on ("package"
+							    "types"))
 			     (:file "utils"    :depends-on ("package"))
+			     (:file "gntp"     :depends-on ("package"
+							    "constants"
+							    "types"
+							    "utils"))
 			     (:file "register" :depends-on ("package"
 							    "constants"
+							    "types"
 							    "specials"
-							    "utils"))
+							    "utils"
+							    "gntp"))
 			     (:file "notify"   :depends-on ("package"
 							    "constants"
+							    "types"
 							    "specials"
 							    "utils"))))))
