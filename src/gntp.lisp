@@ -159,6 +159,7 @@
 		                  checksum-mode encryption-mode password
 		                  (salt (generate-salt 12))
                                   (iv (generate-iv encryption-mode)))
+  #+notnow
   (setf *written* nil)
   (let* ((key (make-key checksum-mode password salt))
 	 (enc-hdr (make-encryption-hdr encryption-mode iv))

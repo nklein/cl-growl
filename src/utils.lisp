@@ -92,6 +92,7 @@
 	 (data (pkcs7-pad payload blen))
 	 (out (make-array (list (length data))
 			  :element-type '(unsigned-byte 8))))
+    #+notnow
     (push (list (length payload) (length out)
 		(utf-8-bytes-to-string payload)
 		(map 'list #'identity key)) *written*)
