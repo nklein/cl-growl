@@ -70,6 +70,6 @@
 					  :key password-enc
 					  :mode :cbc)))
 	(ironclad:encrypt-in-place cipher buffer :start 1)))
-    (usocket:with-udp-client-socket (ss host port
+    (usocket:with-udp-client-socket (ss nil nil
 					:element-type '(unsigned-byte 8))
-      (usocket:socket-send ss buffer (length buffer)))))
+      (usocket:socket-send ss buffer (length buffer) :host host :port port))))
