@@ -87,17 +87,18 @@
   (let* ((cipher (ironclad:make-cipher name
 				       :key key
 				       :mode :cbc
-				       :initialization-vector iv))
-	 (blen (ironclad:block-length cipher))
-	 (data (pkcs7-pad payload blen))
-	 (out (make-array (list (length data))
+				       :initialization-vector iv
+				       :padding :pkcs7))
+	 (ilen (length payload))
+	 (olen (ironclad:encrypted-length cipher ilen t))
+	 (out (make-array (list olen)
 			  :element-type '(unsigned-byte 8))))
-    #+notnow
-    (push (list (length payload) (length out)
-		(utf-8-bytes-to-string payload)
-		(map 'list #'identity key)) *written*)
-    (ironclad:encrypt cipher data out)
-    out))
+    (multiple-value-bind (consumed produced)
+	(ironclad:encrypt cipher payload out
+			  :plaintext-end ilen
+			  :handle-final-block t)
+      (declare (ignore consumed))
+      (subseq out 0 produced))))
 
 #+ironclad
 (defun aes (payload key iv)
@@ -120,7 +121,7 @@
 				 :initial-contents payload))))
     (case encryption-mode
       #+ironclad (:aes  (aes  payload (subseq key 0 24) iv))
-      #+ironclad (:des  (des  payload (subseq key 0 8) iv))
+      #+ironclad (:des  (des  payload (subseq key 0 8)  iv))
       #+ironclad (:3des (3des payload (subseq key 0 24) iv))
       (:none payload)
       (otherwise (error 'unavailable-encryption-error
@@ -155,3 +156,13 @@
 (defun generate-unique-id (item)
   #+(or md5 ironclad) (nth-value 0 (intern (hex-encode (md5 item nil))))
   #-(or md5 ironclad) (symbol-name (gensym "UNIQUE-ID-")))
+
+(defun echo-all-bytes (stream
+		       &optional (buffer (make-array '(512)
+						     :element-type
+						         '(unsigned-byte 8))))
+  (let ((cc (read-sequence buffer stream)))
+    (when (plusp cc)
+      (write-sequence (utf-8-bytes-to-string (subseq buffer 0 cc))
+		      *standard-output*)
+      (echo-all-bytes stream buffer))))

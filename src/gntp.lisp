@@ -25,7 +25,7 @@
 			       :requested-checksum-mode checksum-mode)))))
 
 (defun required-string (ss)
-  (assert (typep ss 'string))
+  (assert (stringp ss))
   (assert (plusp (length ss)))
   (assert (not (find #\Return ss))))
 
@@ -38,6 +38,19 @@
     ((typep ii 'growl-binary-data-type)
      (assert (plusp (length ii))))
     (t (optional-string ii))))
+
+(defun required-id (id)
+  (cond
+    ((symbolp id) t)
+    (t (required-string id))))
+
+(defun optional-id (id)
+  (cond
+    ((null id) t)
+    (t (required-id id))))
+
+(defun valid-priority (pp)
+  (assert (<= -2 pp 2)))
 
 (defun required-value (vv)
   (cond
@@ -86,7 +99,9 @@
     ((typep value 'growl-binary-data-type)
      (let ((uid (generate-unique-id value)))
        (setf (gethash uid data-hash) value)
-       (with-utf-8-strings ((uid (symbol-name uid)))
+       (with-utf-8-strings ((uid (concatenate 'string
+					      "x-growl-resource://"
+					      (symbol-name uid))))
 	 (write-sequence uid *standard-output*))))
     ((stringp value) (with-utf-8-strings (value)
 		       (write-sequence value *standard-output*)))
@@ -159,8 +174,6 @@
 		                  checksum-mode encryption-mode password
 		                  (salt (generate-salt 12))
                                   (iv (generate-iv encryption-mode)))
-  #+notnow
-  (setf *written* nil)
   (let* ((key (make-key checksum-mode password salt))
 	 (enc-hdr (make-encryption-hdr encryption-mode iv))
 	 (pwd-hdr (make-password-hash-hdr key checksum-mode salt))

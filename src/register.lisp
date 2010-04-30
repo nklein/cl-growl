@@ -1,15 +1,5 @@
 (in-package :growl)
 
-(defun echo-all-bytes (stream
-		       &optional (buffer (make-array '(512)
-						     :element-type
-						         '(unsigned-byte 8))))
-  (let ((cc (read-sequence buffer stream)))
-    (when (plusp cc)
-      (write-sequence (utf-8-bytes-to-string (subseq buffer 0 cc))
-		      *standard-output*)
-      (echo-all-bytes stream buffer))))
-
 (defun register (&key (app *growl-default-app*)
 		      (app-icon *growl-default-app-icon*)
 		      enabled
@@ -55,7 +45,6 @@
 	       (eql encryption-mode :none))
     (required-string password))
 
-
   (labels ((hdr (data-hash)
 	     (hdr-line "Application-Name" app data-hash)
 	     (when app-icon
@@ -80,12 +69,7 @@
 			   :binary-data data-hash
 			   :checksum-mode checksum-mode
 			   :encryption-mode encryption-mode
-			   :password password
-			   :salt (string-to-utf-8-bytes "foobie")))))
-      (when (eql encryption-mode :none)
-	(write-sequence (utf-8-bytes-to-string msg) *standard-output*))
-      (unless (eql encryption-mode :none)
-	(write-sequence (map 'string #'code-char msg) *standard-output*))
+			   :password password))))
       (let ((sock (usocket:socket-connect host port
 					  :element-type '(unsigned-byte 8))))
 	(unwind-protect

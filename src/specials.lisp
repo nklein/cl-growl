@@ -23,7 +23,7 @@
   "This is the default notification level to use when sending
    notification events to the Growl server.")
 
-(defvar *growl-default-title* ""
+(defvar *growl-default-title* "Notification"
   "This is the default message title to use when sending
    notification events to the Growl server.")
 (defvar *growl-default-priority* nil
@@ -90,7 +90,7 @@
    a one-dimensional binary array.")
 
 (defvar *growl-default-checksum-mode* #+ironclad :sha256
-				      #+md5 :md5
+				      #+(and md5 (not ironclad)) :md5
 				      #-(or ironclad md5) :none
   "Default hash algorithm to use.  It must be a valid
    GROWL-CHECKSUM-MODE.")
