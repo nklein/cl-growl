@@ -63,7 +63,7 @@
 	     (mapc #'(lambda (nn) (notice-decl nn nil data-hash)) disabled)))
     (let* ((data-hash (make-hash-table))
 	   (msg (with-output-to-binary-string
-		  (compose "REGISTER"
+		  (compose +growl-register-message-type+
 			   :header (with-output-to-binary-string
 				     (hdr data-hash))
 			   :binary-data data-hash

@@ -31,7 +31,7 @@
 (growl:notify "Here is a message.")
 
 (growl:notify "This message has a title"
-	      :body "You will note:")
+	      :title "You will note:")
 
 (growl:notify "This message sticks"
 	      :sticky t)

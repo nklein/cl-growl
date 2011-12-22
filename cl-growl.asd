@@ -19,7 +19,6 @@
 							    "specials"
 							    "utils"
 							    "gntp"))
-			     #+notyet
 			     (:file "notify"   :depends-on ("package"
 							    "constants"
 							    "types"

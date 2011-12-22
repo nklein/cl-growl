@@ -165,4 +165,5 @@
     (when (plusp cc)
       (write-sequence (utf-8-bytes-to-string (subseq buffer 0 cc))
 		      *standard-output*)
+      (force-output *standard-output*)
       (echo-all-bytes stream buffer))))

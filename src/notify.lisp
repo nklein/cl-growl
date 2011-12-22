@@ -43,8 +43,6 @@
    clicks on a notification with a CALLBACK-TARGET, the user's default
    browser is opened to the CALLBACK-TARGET URL.
 
-   One cannot specify both a CALLBACK-CONTEXT and a CALLBACK-TARGET.
-
    This function returns (VALUES STREAM ID).  STREAM will be NIL if
    there is no CALLBACK-CONTEXT.  It will be a stream for the socket
    on which the callback will arrive if a CALLBACK-CONTEXT was
@@ -64,8 +62,7 @@
   (optional-string callback-context)
   (cond
     ((null callback-context) (optional-string callback-target))
-    (t                       (required-string callback-context-type)
-			     (assert (null callback-target))))
+    (t                       (required-string callback-context-type)))
   (required-string host)
   (valid-port port)
 
@@ -99,20 +96,19 @@
 	       (hdr-line "Notification-Icon" icon data-hash))
 
 	     (when coalesce
-	       (hdr-line "Coalescing-ID" coalesce data-hash))
+	       (hdr-line "Notification-Coalescing-ID" coalesce data-hash))
 
-	     (cond
-	       (callback-context
-		         (hdr-line "Notification-Callback-Context"
-				   callback-context data-hash)
-			 (hdr-line "Notification-Callback-Context-Type"
-				   callback-context-type data-hash))
-	       (callback-target
-		         (hdr-line "Notification-Callback-Target"
-				   callback-target data-hash)))))
+             (when callback-context
+               (hdr-line "Notification-Callback-Context"
+                         callback-context data-hash)
+               (hdr-line "Notification-Callback-Context-Type"
+                         callback-context-type data-hash))
+             (when callback-target
+               (hdr-line "Notification-Callback-Target"
+                         callback-target data-hash))))
     (let* ((data-hash (make-hash-table))
 	   (msg (with-output-to-binary-string
-		  (compose "NOTIFY"
+		  (compose +growl-notify-message-type+
 			   :header (with-output-to-binary-string
 				     (hdr data-hash))
 			   :binary-data data-hash
@@ -126,7 +122,10 @@
 	     (progn
 	       (write-sequence msg (usocket:socket-stream sock))
 	       (force-output (usocket:socket-stream sock))
-	       (echo-all-bytes (usocket:socket-stream sock)))
-	  (unless callback-target
+               (unless (and callback-context (not callback-target))
+                 (echo-all-bytes (usocket:socket-stream sock))))
+	  (unless (and callback-context (not callback-target))
 	    (usocket:socket-close sock)))
-	(values (when callback-target sock) id)))))
+	(values (when (and callback-context (not callback-target))
+                  sock)
+                id)))))
