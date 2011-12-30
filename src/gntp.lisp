@@ -84,6 +84,29 @@
 (defun valid-port (pp)
   (assert (plusp pp)))
 
+(defun require-salt (salt)
+  (typecase salt
+    (function (let ((val (funcall salt)))
+                (if (functionp val)
+                    (error 'unsupported-salt-type-error
+                           :salt salt)
+                    (require-salt val))))
+    (string (string-to-utf-8-bytes salt))
+    (growl-binary-data-type salt)
+    (t (error 'unsupported-salt-type-error :salt))))
+
+(defun require-iv (iv encryption-mode)
+  (typecase iv
+    (function (let ((val (funcall iv encryption-mode)))
+                (if (functionp val)
+                    (error 'unsupported-iv-type-error
+                           :salt iv)
+                    (require-iv val encryption-mode))))
+    (string (string-to-utf-8-bytes iv))
+    (growl-binary-data-type iv)
+    (t (error 'unsupported-iv-type-error
+              :iv iv :encryption-mode encryption-mode))))
+  
 ;;; =======================================================
 ;;; protocol element output
 ;;; =======================================================
@@ -172,8 +195,7 @@
 
 (defun compose (message-type &key header binary-data
 		                  checksum-mode encryption-mode password
-		                  (salt (generate-salt 12))
-                                  (iv (generate-iv encryption-mode)))
+		                  salt iv)
   (let* ((key (make-key checksum-mode password salt))
 	 (enc-hdr (make-encryption-hdr encryption-mode iv))
 	 (pwd-hdr (make-password-hash-hdr key checksum-mode salt))

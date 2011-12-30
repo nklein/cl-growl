@@ -66,3 +66,23 @@
    (requested-checksum-mode   :initarg :requested-checksum-mode
 			      :reader incompatible-checksum-requested-mode))
   (:report report-incompatible-encryption-and-checksum-error))
+
+(defun report-unsupported-salt-type-error (err stream)
+  (let ((salt (slot-value err 'salt)))
+    (format stream "Unable to use salt: ~A" salt)))
+
+(define-condition unsupported-salt-type-error (error)
+  ((salt :initarg :salt :reader unsupported-salt-type-salt))
+  (:report report-unsupported-salt-type-error))
+
+(defun report-unsupported-iv-type-error (err stream)
+  (let ((iv (slot-value err 'iv))
+        (encryption-mode (slot-value err 'encryption-mode)))
+    (format stream "Unable to use iv for mode ~A: ~A"
+            encryption-mode iv)))
+
+(define-condition unsupported-iv-type-error (error)
+  ((iv :initarg :iv :reader unsupported-iv-type-iv)
+   (encryption-mode :initarg :encryption-mode
+                    :reader unsupported-iv-type-encryption-mode))
+  (:report report-unsupported-iv-type-error))

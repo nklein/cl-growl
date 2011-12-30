@@ -1,6 +1,9 @@
-(require :asdf)
-(asdf:operate 'asdf:load-op 'ironclad)
-(asdf:operate 'asdf:load-op 'cl-growl)
+(ql:quickload :md5)
+(ql:quickload :ironclad)
+(ql:quickload :cl-growl)
+
+(setf growl:*growl-default-encryption-mode* :none)
+(setf growl:*growl-default-encryption-mode* :aes)
 
 ;;;
 ;;; need IronClad for SHA-256, can use
@@ -17,13 +20,11 @@
    :host "localhost"
    :port 23053
    :password "growl-password"
-   :checksum-mode :sha256
-   :encryption-mode :aes)
+   :checksum-mode :sha256)
 
 ;;; Prepare some defaults
 (setf growl:*growl-default-app* "Lambda Fun"
       growl:*growl-default-host* "localhost"
-      growl:*growl-default-encryption-mode* :aes
       growl:*growl-default-password* "growl-password"
       growl:*growl-default-notification* "info")
 

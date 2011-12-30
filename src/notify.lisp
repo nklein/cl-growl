@@ -16,7 +16,9 @@
 			 (port *growl-default-port*)
 			 (checksum-mode *growl-default-checksum-mode*)
 			 (encryption-mode *growl-default-encryption-mode*)
-			 (password *growl-default-password*))
+			 (password *growl-default-password*)
+                         (salt *growl-default-salt*)
+                         (iv *growl-default-iv*))
 
   "Send a notification with TITLE as its title and BODY as its text
    body.  The notificiation is from the APP and with notification name
@@ -42,6 +44,12 @@
    If a CALLBACK-TARGET is specified, it must be a URL.  If the user
    clicks on a notification with a CALLBACK-TARGET, the user's default
    browser is opened to the CALLBACK-TARGET URL.
+
+   If SALT is an array of unsigned bytes, it will be used directly.
+   If SALT is a string, it will be converted to an array of unsigned
+   bytes using a UTF-8 encoding.  If SALT is a function, it will be
+   invoked with zero arguments and can either return an array of
+   unsigned bytes or a string.
 
    This function returns (VALUES STREAM ID).  STREAM will be NIL if
    there is no CALLBACK-CONTEXT.  It will be a stream for the socket
@@ -75,6 +83,12 @@
   (when (and body (plusp (length body)))
     (format t "SENDING: ~A~%" body))
 
+  (unless (eql checksum-mode :none)
+    (setf salt (require-salt salt)))
+  
+  (unless (eql encryption-mode :none)
+    (setf iv (require-iv iv encryption-mode)))
+  
   (labels ((hdr (data-hash)
 	     (hdr-line "Application-Name" app data-hash)
 	     (hdr-line "Notification-Name" notification data-hash)
@@ -115,7 +129,9 @@
 			   :checksum-mode checksum-mode
 			   :encryption-mode encryption-mode
 			   :password password
-			   :salt (string-to-utf-8-bytes "foobie")))))
+			   :salt salt
+                           :iv iv
+                           ))))
       (let ((sock (usocket:socket-connect host port
 					  :element-type '(unsigned-byte 8))))
 	(unwind-protect

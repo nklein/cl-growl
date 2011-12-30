@@ -11,7 +11,9 @@
 		      (port *growl-default-port*)
 		      (checksum-mode *growl-default-checksum-mode*)
 		      (encryption-mode *growl-default-encryption-mode*)
-		      (password *growl-default-password*))
+		      (password *growl-default-password*)
+                      (salt *growl-default-salt*)
+                      (iv   *growl-default-iv*))
 
   "Register as the application named APP with the ENABLED
    notifications turned on and the DISABLED notifications turned off
@@ -45,6 +47,12 @@
 	       (eql encryption-mode :none))
     (required-string password))
 
+  (unless (eql checksum-mode :none)
+    (setf salt (require-salt salt)))
+  
+  (unless (eql encryption-mode :none)
+    (setf iv (require-iv iv encryption-mode)))
+
   (labels ((hdr (data-hash)
 	     (hdr-line "Application-Name" app data-hash)
 	     (when app-icon
@@ -69,7 +77,9 @@
 			   :binary-data data-hash
 			   :checksum-mode checksum-mode
 			   :encryption-mode encryption-mode
-			   :password password))))
+			   :password password
+                           :salt salt
+                           :iv iv))))
       (let ((sock (usocket:socket-connect host port
 					  :element-type '(unsigned-byte 8))))
 	(unwind-protect

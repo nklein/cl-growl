@@ -6,9 +6,10 @@
 		:components ((:file "package")
 			     (:file "constants" :depends-on ("package"))
 			     (:file "types"    :depends-on ("package"))
-			     (:file "specials" :depends-on ("package"
-							    "types"))
 			     (:file "utils"    :depends-on ("package"))
+			     (:file "specials" :depends-on ("package"
+							    "types"
+                                                            "utils"))
 			     (:file "gntp"     :depends-on ("package"
 							    "constants"
 							    "types"

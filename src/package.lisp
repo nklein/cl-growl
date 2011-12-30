@@ -11,6 +11,7 @@
 	   #:*growl-default-title*
 	   #:*growl-default-priority*
 	   #:*growl-default-icon*
+           #:*growl-default-salt*
 	   #:*growl-default-callback-context*
 	   #:*growl-default-callback-context-type*
 	   #:*growl-default-callback-target*

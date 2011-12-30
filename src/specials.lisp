@@ -16,6 +16,16 @@
    It can be either an encoded image stored in a one-dimensional
    binary array or a URL for the icon image to use.")
 
+(defvar *growl-default-salt* #'(lambda () (generate-salt 12))
+  "This can be either a function of no arguments used to generate
+   a binary array or string as a salt, a fixed binary array,
+   or a fixed string.")
+(defvar *growl-default-iv* #'(lambda (encryption-mode)
+                               (generate-iv encryption-mode))
+  "This can be either a function that takes the encryption
+   mode and returns a binary array or string as a salt, a
+   fixed binary array, or a fixed string.")
+
 ;;; ==========================================================
 ;;; Notification-specific defaults
 ;;; ==========================================================
