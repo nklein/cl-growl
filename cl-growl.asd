@@ -1,6 +1,6 @@
 (asdf:defsystem #:cl-growl
-  :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams)
-  :weakly-depends-on (#:md5 #:ironclad)
+  :version "1.1.2012.02.26"
+  :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams #:ironclad)
   :components ((:module "src"
 		:components ((:file "package")
 			     (:file "constants" :depends-on ("package"))
