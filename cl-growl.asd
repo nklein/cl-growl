@@ -1,5 +1,5 @@
 (asdf:defsystem #:cl-growl
-  :version "1.1.2012.02.26"
+  :version "1.1.2013.02.26"
   :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams #:ironclad)
   :components ((:module "src"
 		:components ((:file "package")
