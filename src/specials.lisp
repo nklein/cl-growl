@@ -69,7 +69,7 @@
 (defvar *growl-default-origin-fields*
         `(("Machine-Name" ,(machine-instance))
 	  ("Software-Name" "CL-GROWL")
-	  ("Software-Version" "1.5")
+	  ("Software-Version" "1.2")
 	  ("Platform-Name" ,(concatenate 'string
 					 (software-type)
 					 " "
