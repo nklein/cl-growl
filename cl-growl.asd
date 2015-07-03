@@ -3,7 +3,7 @@
   :maintainer "Patrick Stein <pat@nklein.com>"
   :description "Utilities for sending messages to Growl on Mac OS X."
   :license "Public Domain"
-  :version "1.1.2013.02.26"
+  :version "1.2.20150702"
   :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams #:ironclad)
   :components ((:module "src"
 		:components ((:file "package")
