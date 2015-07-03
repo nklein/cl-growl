@@ -1,5 +1,3 @@
-(ql:quickload :md5)
-(ql:quickload :ironclad)
 (ql:quickload :cl-growl)
 
 (setf growl:*growl-default-encryption-mode* :none)

@@ -80,15 +80,12 @@
 	       (eql encryption-mode :none))
     (required-string password))
 
-  (when (and body (plusp (length body)))
-    (format t "SENDING: ~A~%" body))
-
   (unless (eql checksum-mode :none)
     (setf salt (require-salt salt)))
-  
+
   (unless (eql encryption-mode :none)
     (setf iv (require-iv iv encryption-mode)))
-  
+
   (labels ((hdr (data-hash)
 	     (hdr-line "Application-Name" app data-hash)
 	     (hdr-line "Notification-Name" notification data-hash)

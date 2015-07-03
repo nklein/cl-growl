@@ -90,7 +90,8 @@
 				       :initialization-vector iv
 				       :padding :pkcs7))
 	 (ilen (length payload))
-	 (olen (ironclad:encrypted-length cipher ilen t))
+         (blen (ironclad:block-length cipher))
+	 (olen (* blen (ceiling ilen blen)))
 	 (out (make-array (list olen)
 			  :element-type '(unsigned-byte 8))))
     (multiple-value-bind (consumed produced)
