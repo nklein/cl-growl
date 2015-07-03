@@ -4,26 +4,14 @@
   `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)
      ,@(when doc (list doc))))
 
-(define-constant +growl-protocol-version+ 1 "GROWL Protocol Version")
+(define-constant +growl-protocol-version+ "1.0"
+  "GNTP Protocol Version")
 
-#+(and ironclad notyet)
-(define-constant +growl-protocol-version-aes128+ 2
-                 "GROWL Protocol Version with Encryption")
+(define-constant +growl-register-message-type+ "REGISTER"
+  "Message type for register messages.")
 
-#+(or md5 ironclad)
-(define-constant +growl-type-registration+ 0 "Registration packet with MD5")
+(define-constant +growl-notify-message-type+ "NOTIFY"
+  "Message type for notify messages.")
 
-#+(or md5 ironclad)
-(define-constant +growl-type-notification+ 1 "Notification packet with MD5")
-
-#+ironclad
-(define-constant +growl-type-registration-sha256+ 2
-                 "Registration packet with SHA-256 checksum")
-#+ironclad
-(define-constant +growl-type-notification-sha256+ 3
-                 "Notification packet with SHA-256 checksum")
-
-(define-constant +growl-type-registration-noauth+ 4
-                 "Registration packet without authentication")
-(define-constant +growl-type-notification-noauth+ 5
-                 "Notification packet without authentication")
+(define-constant +growl-subscribe-message-type+ "SUBSCRIBE"
+  "Message type for subscribe messages.")

@@ -1,18 +1,34 @@
 (in-package :growl)
 
-(define-condition unavailable-checksum-error (error)
-  ((requested-mode :initarg :requested-mode
-		   :reader unavailable-checksum-requested-mode))
-  (:report (lambda (condition stream)
-	     (case (unavailable-checksum-requested-mode condition)
-	       (:sha256 (format stream "Need IRONCLAD package to do SHA256 checksum"))
-	       (:md5    (format stream "Need IRONCLAD or MD5 package to do MD5 checksum"))
-	       (otherwise (format stream "Unknown checksum mode: ~S"
-				  (unavailable-checksum-requested-mode condition)))))))
+(defmacro with-utf-8-strings ((&rest names) &body body)
+  (labels ((convert-name (nn)
+	     (cond
+	       ((listp nn) `(,(first nn)
+			      (when ,(second nn)
+				(trivial-utf-8:string-to-utf-8-bytes
+				    ,(second nn)))))
+	       (t `(,nn (when ,nn
+			  (trivial-utf-8:string-to-utf-8-bytes ,nn)))))))
+    `(let ,(mapcar #'convert-name names)
+       ,@body)))
+
+(defmacro with-output-to-binary-string (&body body)
+  (let ((stream (gensym "STREAM-")))
+    `(let ((,stream (flexi-streams:make-in-memory-output-stream)))
+       (let ((*standard-output* ,stream))
+	 ,@body)
+       (flexi-streams:get-output-stream-sequence ,stream))))
 
 (defun write-short (ss stream)
   (write-byte (ldb (byte 8 8) ss) stream)
   (write-byte (ldb (byte 8 0) ss) stream))
+
+#+ironclad
+(defun sha1 (buffer password)
+  (let ((digester (ironclad:make-digest :sha1)))
+    (ironclad:update-digest digester buffer)
+    (ironclad:update-digest digester password)
+    (ironclad:produce-digest digester)))
 
 #+ironclad
 (defun sha256 (buffer password)
@@ -26,12 +42,14 @@
   #+ironclad
   (let ((digester (ironclad:make-digest :md5)))
     (ironclad:update-digest digester buffer)
-    (ironclad:update-digest digester password)
+    (when password
+      (ironclad:update-digest digester password))
     (ironclad:produce-digest digester))
   #-ironclad
   (let ((digester (md5:make-md5-state)))
     (md5:update-md5-state digester buffer)
-    (md5:update-md5-state digester password)
+    (when password
+      (md5:update-md5-state digester password))
     (md5:finalize-md5-state digester)))
 
 (defun noauth (buffer password)
@@ -42,34 +60,111 @@
 (defun checksum (payload password checksum-mode)
   (let ((payload (if (typep payload '(simple-array (unsigned-byte 8) (*)))
 		     payload
-		     (make-array (length payload)
-				 :element-type '(unsigned-byte 8)
-				 :initial-contents payload)))
+		     (string-to-utf-8-bytes payload)))
 	(password (if (typep password '(simple-array (unsigned-byte 8) (*)))
 		      password
-		      (make-array (length password)
-				  :element-type '(unsigned-byte 8)
-				  :initial-contents password))))
+		      (string-to-utf-8-bytes password))))
     (case checksum-mode
       #+ironclad (:sha256 (sha256 payload password))
+      #+ironclad (:sha1 (sha1 payload password))
       #+(or md5 ironclad) (:md5 (md5 payload password))
-      (:noauth (noauth payload password))
+      (:none (noauth payload password))
       (otherwise (error 'unavailable-checksum-error
 			:requested-mode checksum-mode)))))
 
+(defun pkcs7-pad (payload block-len)
+  (let* ((payload-len (length payload))
+	 (left        (mod payload-len block-len))
+	 (pad-len     (if (zerop left) 8 left))
+	 (pad         (loop :for ii :from 1 :to pad-len
+			    :collecting pad-len)))
+    (concatenate '(array (unsigned-byte 8) (*))
+		 payload
+		 pad)))
 
-(defun send-packet (payload &key host port checksum-mode password
-		                 #+(and ironclad notyet) encryptp
-		      &aux (password-enc (string-to-utf-8-bytes password)))
-  (let ((buffer (concatenate '(simple-array (unsigned-byte 8) (*))
-			     payload
-			     (checksum payload password-enc checksum-mode))))
-    #+(and ironclad notyet)
-    (when encryptp
-      (let ((cipher (ironclad:make-cipher :aes
-					  :key password-enc
-					  :mode :cbc)))
-	(ironclad:encrypt-in-place cipher buffer :start 1)))
-    (usocket:with-udp-client-socket (ss nil nil
-					:element-type '(unsigned-byte 8))
-      (usocket:socket-send ss buffer (length buffer) :host host :port port))))
+#+ironclad
+(defun ironclad-encrypt (name payload key iv)
+  (let* ((cipher (ironclad:make-cipher name
+				       :key key
+				       :mode :cbc
+				       :initialization-vector iv
+				       :padding :pkcs7))
+	 (ilen (length payload))
+         (blen (ironclad:block-length cipher))
+	 (olen (* blen (ceiling ilen blen)))
+	 (out (make-array (list olen)
+			  :element-type '(unsigned-byte 8))))
+    (multiple-value-bind (consumed produced)
+	(ironclad:encrypt cipher payload out
+			  :plaintext-end ilen
+			  :handle-final-block t)
+      (declare (ignore consumed))
+      (subseq out 0 produced))))
+
+#+ironclad
+(defun aes (payload key iv)
+  (ironclad-encrypt :aes payload key iv))
+
+#+ironclad
+(defun des (payload key iv)
+  (ironclad-encrypt :des payload key iv))
+
+#+ironclad
+(defun 3des (payload key iv)
+  (ironclad-encrypt :3des payload key iv))
+
+
+(defun encrypt (payload encryption-mode key iv)
+  (let ((payload (if (typep payload '(simple-array (unsigned-byte 8) (*)))
+		     payload
+		     (make-array (list (length payload))
+				 :element-type '(unsigned-byte 8)
+				 :initial-contents payload))))
+    (case encryption-mode
+      #+ironclad (:aes  (aes  payload (subseq key 0 24) iv))
+      #+ironclad (:des  (des  payload (subseq key 0 8)  iv))
+      #+ironclad (:3des (3des payload (subseq key 0 24) iv))
+      (:none payload)
+      (otherwise (error 'unavailable-encryption-error
+			:requested-mode encryption-mode)))))
+
+(defun hex-encode (bytes)
+  (flet ((nibble-to-hex (nn)
+	   (elt "0123456789ABCDEF" nn)))
+    (with-output-to-string (ss)
+      (map nil #'(lambda (bb)
+		   (format ss "~C~C" (nibble-to-hex (ldb (byte 4 4) bb))
+			             (nibble-to-hex (ldb (byte 4 0) bb))))
+	   bytes))))
+
+(defun generate-random-bytes (byte-count)
+  (let ((array (make-array (list byte-count)
+			   :element-type '(unsigned-byte 8))))
+    (loop :for ii :from 0 :below byte-count
+       :do (setf (aref array ii) (random 256)))
+    array))
+
+(defun generate-salt (salt-byte-count)
+  (generate-random-bytes salt-byte-count))
+
+(defun generate-iv (encryption-mode)
+  (case encryption-mode
+    (:none (generate-random-bytes 0))
+    #+ironclad (:aes  (generate-random-bytes 16))
+    #+ironclad (:des  (generate-random-bytes 8))
+    #+ironclad (:3des (generate-random-bytes 8))))
+
+(defun generate-unique-id (item)
+  #+(or md5 ironclad) (nth-value 0 (intern (hex-encode (md5 item nil))))
+  #-(or md5 ironclad) (symbol-name (gensym "UNIQUE-ID-")))
+
+(defun echo-all-bytes (stream
+		       &optional (buffer (make-array '(512)
+						     :element-type
+						         '(unsigned-byte 8))))
+  (let ((cc (read-sequence buffer stream)))
+    (when (plusp cc)
+      (write-sequence (utf-8-bytes-to-string (subseq buffer 0 cc))
+		      *standard-output*)
+      (force-output *standard-output*)
+      (echo-all-bytes stream buffer))))

@@ -1,73 +1,144 @@
 (in-package :growl)
 
-(defun notify (message &key (title *growl-default-title*)
-	               (app *growl-default-app*)
-	               (notification *growl-default-notification*)
-	               (priority 0)
-	               (sticky nil)
-		       (host *growl-default-host*)
-		       (port *growl-default-port*)
-		       (checksum-mode (or #+ironclad :sha256
-					  #+md5      :md5
-				                     :noauth))
-		       (password *growl-default-password*)
-		       #+(and ironclad notyet) (encryptp nil)
-		  &aux (message-enc (string-to-utf-8-bytes message))
-	               (title-enc (string-to-utf-8-bytes title))
-	               (app-enc (string-to-utf-8-bytes app))
-	               (notification-enc (string-to-utf-8-bytes notification)))
-  "Make a notification of type NOTIFICATION for the app APP with description MESSAGE."
+(defun notify (body &key (app *growl-default-app*)
+			 (notification *growl-default-notification*)
+			 (id (gensym "NOTICE-"))
+			 (title *growl-default-title*)
+			 (sticky nil)
+			 (priority *growl-default-priority*)
+			 (icon *growl-default-icon*)
+			 (coalesce nil)
+			 (callback-context *growl-default-callback-context*)
+			 (callback-context-type
+			        *growl-default-callback-context-type*)
+			 (callback-target *growl-default-callback-target*)
+			 (host *growl-default-host*)
+			 (port *growl-default-port*)
+			 (checksum-mode *growl-default-checksum-mode*)
+			 (encryption-mode *growl-default-encryption-mode*)
+			 (password *growl-default-password*)
+                         (salt *growl-default-salt*)
+                         (iv *growl-default-iv*))
 
-  (let ((ver (or #+(and ironclad notyet)
-		 (when encryptp +growl-protocol-version-aes128+)
-		 +growl-protocol-version+))
-	(type (ecase checksum-mode
-		#+ironclad (:sha256 +growl-type-notification-sha256+)
-		#+(or md5 ironclad) (:md5 +growl-type-notification+)
-		(:noauth +growl-type-registration-noauth+)))
-	(notification-len (length notification-enc))
-	(title-len (length title-enc))
-	(message-len (length message-enc))
-	(app-len (length app-enc))
+  "Send a notification with TITLE as its title and BODY as its text
+   body.  The notificiation is from the APP and with notification name
+   NOTIFICATION.  It has an ID that is hopefully unique to this
+   notification.  And, it has an advisory PRIORITY on the range
+   [-2,2] (unless PRIORITY is nil).  The app can request that the
+   notification be STICKY.
 
-	;; Note: the protocol claims that the priority is on the
-	;; range [-2,2] and is kept as a 3-bit quantity along with
-	;; a sticky big in the lowest nibble of the flags.  In all
-	;; of the sample code, the sticky bit is kept in the lowest
-	;; bit of the first byte of the flags and the priority is
-	;; kept in the upper three bits of the lowest nibble of the
-	;; second byte of the flags.  It seems that they had intended
-	;; to put the sticky bit in the bottom bit of that lowest
-	;; nibble, but accidently put it in the bottom bit of the
-	;; third lowest nibble, and the rest is history.
-	;;
-	;; Also, most implementations must mask the priority with 0x07,
-	;; multiply it by two, and then explicitly turn on the sign
-	;; bit when the priority is negative.  This is redundant and
-	;; lets in quantities like +3 and -4.  So, I have been more
-	;; explicit in my calculation.  Of course, the receiving side
-	;; totally ignores the priority in the notification and goes
-	;; with the priority set in the preferences for the notification
-	;; type.
-	(flags   (logior (* (logand (max (min priority 2) -2) #x03) 2)
-			 (if (< priority 0) #x08 #x00)
-			 (if sticky #x0100 #x0000))))
-    (let ((stream (flexi-streams:make-in-memory-output-stream)))
-      (write-byte ver stream)
-      (write-byte type stream)
-      (write-short flags stream)
-      (write-short notification-len stream)
-      (write-short title-len stream)
-      (write-short message-len stream)
-      (write-short app-len stream)
-      (write-sequence notification-enc stream)
-      (write-sequence title-enc stream)
-      (write-sequence message-enc stream)
-      (write-sequence app-enc stream)
+   This notice can specify its own ICON either by URL or by sending
+   along the binary data.
 
-      (send-packet (flexi-streams:get-output-stream-sequence stream)
-		   :host host :port port
-		   :checksum-mode checksum-mode
-		   :password password
-		   #+(and ironclad notyet) :encryptp
-		   #+(and ironclad notyet) encryptp))))
+   If a COALESCE is given, it should contain the ID of a previously
+   sent notification that should be updated or replaced by this one.
+
+   If a CALLBACK-CONTEXT string is given, it specifies that GROWL
+   should send a message back on this notification's socket when the
+   user click the message, closes the message, or when the message
+   times out.  If CALLBACK-CONTEXT is non-nil (and non-empty), then
+   CALLBACK-CONTEXT-TYPE must also be non-nil (and non-empty).  The
+   CALLBACK-CONTEXT and CALLBACK-CONTEXT-TYPE are returned in the
+   callback.
+
+   If a CALLBACK-TARGET is specified, it must be a URL.  If the user
+   clicks on a notification with a CALLBACK-TARGET, the user's default
+   browser is opened to the CALLBACK-TARGET URL.
+
+   If SALT is an array of unsigned bytes, it will be used directly.
+   If SALT is a string, it will be converted to an array of unsigned
+   bytes using a UTF-8 encoding.  If SALT is a function, it will be
+   invoked with zero arguments and can either return an array of
+   unsigned bytes or a string.
+
+   This function returns (VALUES STREAM ID).  STREAM will be NIL if
+   there is no CALLBACK-CONTEXT.  It will be a stream for the socket
+   on which the callback will arrive if a CALLBACK-CONTEXT was
+   given. ID will be the notification ID used for this message."
+
+  ;; sanity checks
+  (required-string title)
+  (required-string app)
+  (required-string notification)
+  (optional-id id)
+  (unless (and (stringp body) (zerop (length body)))
+    (optional-string body))
+  (when priority
+    (valid-priority priority))
+  (optional-icon icon)
+  (optional-id coalesce)
+  (optional-string callback-context)
+  (cond
+    ((null callback-context) (optional-string callback-target))
+    (t                       (required-string callback-context-type)))
+  (required-string host)
+  (valid-port port)
+
+  (valid-encryption-checksum-combo encryption-mode checksum-mode)
+
+  (unless (and (eql checksum-mode :none)
+	       (eql encryption-mode :none))
+    (required-string password))
+
+  (unless (eql checksum-mode :none)
+    (setf salt (require-salt salt)))
+
+  (unless (eql encryption-mode :none)
+    (setf iv (require-iv iv encryption-mode)))
+
+  (labels ((hdr (data-hash)
+	     (hdr-line "Application-Name" app data-hash)
+	     (hdr-line "Notification-Name" notification data-hash)
+
+	     (when id
+	       (hdr-line "Notification-ID" id data-hash))
+
+	     (hdr-line "Notification-Title"
+		       (or title *growl-default-title*) data-hash)
+	     (when (and body (plusp (length body)))
+	       (hdr-line "Notification-Text" body data-hash))
+
+	     (when sticky
+	       (hdr-line "Notification-Sticky" "True" data-hash))
+	     (when priority
+	       (hdr-line "Notification-Priority" priority data-hash))
+
+	     (when icon
+	       (hdr-line "Notification-Icon" icon data-hash))
+
+	     (when coalesce
+	       (hdr-line "Notification-Coalescing-ID" coalesce data-hash))
+
+             (when callback-context
+               (hdr-line "Notification-Callback-Context"
+                         callback-context data-hash)
+               (hdr-line "Notification-Callback-Context-Type"
+                         callback-context-type data-hash))
+             (when callback-target
+               (hdr-line "Notification-Callback-Target"
+                         callback-target data-hash))))
+    (let* ((data-hash (make-hash-table))
+	   (msg (with-output-to-binary-string
+		  (compose +growl-notify-message-type+
+			   :header (with-output-to-binary-string
+				     (hdr data-hash))
+			   :binary-data data-hash
+			   :checksum-mode checksum-mode
+			   :encryption-mode encryption-mode
+			   :password password
+			   :salt salt
+                           :iv iv
+                           ))))
+      (let ((sock (usocket:socket-connect host port
+					  :element-type '(unsigned-byte 8))))
+	(unwind-protect
+	     (progn
+	       (write-sequence msg (usocket:socket-stream sock))
+	       (force-output (usocket:socket-stream sock))
+               (unless (and callback-context (not callback-target))
+                 (echo-all-bytes (usocket:socket-stream sock))))
+	  (unless (and callback-context (not callback-target))
+	    (usocket:socket-close sock)))
+	(values (when (and callback-context (not callback-target))
+                  sock)
+                id)))))
