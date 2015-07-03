@@ -91,9 +91,9 @@
 				       :padding :pkcs7))
 	 (ilen (length payload))
          (blen (ironclad:block-length cipher))
-	 (olen (* blen (ceiling ilen blen)))
-	 (out (make-array (list olen)
-			  :element-type '(unsigned-byte 8))))
+         ;; The (1+ ...) here is to make sure there is room for PKCS7 padding
+	 (olen (* blen (ceiling (1+ ilen) blen)))
+	 (out (make-array (list olen) :element-type '(unsigned-byte 8))))
     (multiple-value-bind (consumed produced)
 	(ironclad:encrypt cipher payload out
 			  :plaintext-end ilen
