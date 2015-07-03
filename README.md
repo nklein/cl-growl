@@ -1,8 +1,8 @@
-## CL-Growl Client Library
+# CL-Growl Client Library
 
-[Growl](growl) is a notification system originally written for Mac OS
-X, but now supported on [Windows](gfw) and [Linux](gfl).  Growl
-supports a small network protocol over UDP called [GNTP](gntp).  This
+[Growl][growl] is a notification system originally written for Mac OS
+X, but now supported on [Windows][gfw] and [Linux][gfl].  Growl
+supports a small network protocol over UDP called [GNTP][gntp].  This
 is a Common Lisp client library for registering an application with
 Growl and sending Growl notifications on behalf of the registered
 application.
@@ -12,12 +12,12 @@ application.
   [gfl]: http://mattn.github.io/growl-for-linux/
   [gntp]: http://growl.info/documentation/developer/gntp.php
 
-### Obtaining the code
+## Obtaining the code
 
 * Quicklisp: `(ql:quickload :cl-growl)`
-* Git repository: [http://github.com/nklein/cl-growl/]
+* Git repository: <http://github.com/nklein/cl-growl/>
 
-### Usage
+## Usage
 
 Before your application can start sending messages to Growl, it needs
 to register the notification types it intends to send. On the
@@ -85,7 +85,7 @@ each of these variables.
     *growl-default-encryption-mode*
     *growl-default-password*
 
-### Compatibility
+## Compatibility
 
 This library does not currently implement the `subscribe` protocol
 method of GNTP.
