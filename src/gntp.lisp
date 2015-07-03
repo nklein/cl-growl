@@ -93,7 +93,7 @@
                     (require-salt val))))
     (string (string-to-utf-8-bytes salt))
     (growl-binary-data-type salt)
-    (t (error 'unsupported-salt-type-error :salt))))
+    (t (error 'unsupported-salt-type-error :salt salt))))
 
 (defun require-iv (iv encryption-mode)
   (typecase iv
@@ -106,7 +106,7 @@
     (growl-binary-data-type iv)
     (t (error 'unsupported-iv-type-error
               :iv iv :encryption-mode encryption-mode))))
-  
+
 ;;; =======================================================
 ;;; protocol element output
 ;;; =======================================================
