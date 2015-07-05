@@ -67,7 +67,6 @@ each of these variables.
     *growl-default-salt*
     *growl-default-iv*
 
-
     *growl-default-notification*
     *growl-default-title*
     *growl-default-priority*
