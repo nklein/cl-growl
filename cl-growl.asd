@@ -4,7 +4,7 @@
   :description "Utilities for sending messages to Growl on Mac OS X."
   :license "Public Domain"
   :version "1.2.20150702"
-  :depends-on (#:trivial-utf-8 #:usocket-udp #:flexi-streams #:ironclad)
+  :depends-on (#:trivial-utf-8 #:usocket #:flexi-streams #:ironclad)
   :components ((:module "src"
 		:components ((:file "package")
 			     (:file "constants" :depends-on ("package"))
